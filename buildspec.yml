@@ -12,3 +12,8 @@ phases:
 artifacts:
   files:
     - lambda.zip
+post_build:
+  commands:
+    - echo "Updating lambda Function..."
+    - aws lambda update-function-code --function-name data-cloud-project-maps-details --zip-file fileb://lambda.zip
+    - echo "DONE!!"
