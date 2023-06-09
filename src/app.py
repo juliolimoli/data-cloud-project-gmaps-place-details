@@ -4,6 +4,7 @@ import os
 import time
 from datetime import datetime
 import json
+import boto3
 
 # function that retry and abort on attempts to do something
 def retry_abort(func: function, max_retries: int = 3):
@@ -81,8 +82,7 @@ def s3_put_object(
 def lambda_handler(event, context):
 
     # loop through event ids
-    ids = event['places_ids']
-    for id in ids:
+    for id in event['places_ids']:
 
         # make the requests to details api
 
