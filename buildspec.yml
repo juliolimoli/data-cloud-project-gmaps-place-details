@@ -9,6 +9,12 @@ phases:
       - echo "Build started on `date`"
       - pip install -r requirements.txt -t .
       - zip -r lambda.zip *
+  post_build:
+    commands:
+      - echo "Updating lambda Function..."
+      - aws lambda update-function-code --function-name data-cloud-project-maps-details --zip-file fileb://deployment_package.zip
+      - echo "DONE!!"
 artifacts:
   files:
     - lambda.zip
+
