@@ -6,24 +6,6 @@ from datetime import datetime
 import json
 import boto3
 
-# function that retry and abort on attempts to do something
-def retry_abort(func: function, max_retries: int = 3):
-    def retry_abort_wrapper(*args, **kwargs):
-        function_name = func.__name__
-        print(f"Initializing the function: {function_name}")
-        for attempt in range(1, max_retries+1):
-            try:
-                return func(*args, **kwargs)
-            except Exception as e:
-                print(e)
-                if attempt == max_retries:
-                    # abort
-                    raise e
-                time.sleep(5)
-    return retry_abort_wrapper
-
-# function that requests in the details search
-@retry_abort
 def details_search(
     id: str = None,
     response_format: str = 'json'
@@ -48,7 +30,7 @@ def details_search(
     return response
 
 # function that saves data in S3 bucket
-@retry_abort
+#@retry_abort
 def s3_put_object(
     bucket_name: str, 
     file_key: str,
@@ -63,16 +45,15 @@ def s3_put_object(
     Return:
         True if file was uploaded, else False
     """
-    # File to upload
-    upload_byte_stream = bytes(file.encode("UTF-8"))
 
     # Upload the file
     s3_client = boto3.client("s3")
     try:
         response = s3_client.put_object(
             Bucket=bucket_name, 
-            Key=file_key, 
-            Body=upload_byte_stream
+            Key=file_key,
+            Body=file,
+            ContentType="text/plain;charset=utf-8"
             )
     except ClientError as e:
         print(e)
@@ -80,19 +61,23 @@ def s3_put_object(
     return True
 
 def lambda_handler(event, context):
-
+    print("begin")
     # loop through event ids
-    for id in event['places_ids']:
-
+    print(event)
+    for id in event["detail"]["places_ids"]:
+        print(id)
         # make the requests to details api
 
         response = details_search(id=id)
         response_dict = json.loads(response.text)
-
+        response_encoded = json.dumps(
+            response_dict, 
+            ensure_ascii=False
+            ).encode('utf8')
+        
         # Upload to S3
-        t = datetime.now()
-        timestamp = datetime.strftime(t, "%Y%m%d%H%M%S%f")
-        bucket = "SoR"
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        bucket = "dcpgm-sor"
         prefix = "gmaps/details/"
         file_name = f"{id}_{timestamp}.json"
         key = f"{prefix}{file_name}"
@@ -100,5 +85,5 @@ def lambda_handler(event, context):
         s3_put_object(
             bucket_name=bucket,
             file_key=key,
-            file=response_dict
+            file=response_encoded
             )
