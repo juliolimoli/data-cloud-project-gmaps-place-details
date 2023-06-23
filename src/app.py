@@ -1,7 +1,6 @@
 # import libs
 import requests as req
 import os
-import time
 from datetime import datetime
 import json
 import boto3
