@@ -4,6 +4,7 @@ import os
 from datetime import datetime
 import json
 import boto3
+import gzip
 
 def details_search(
     id: str = None,
@@ -30,10 +31,10 @@ def details_search(
 
 # function that saves data in S3 bucket
 #@retry_abort
-def s3_put_object(
+def s3_upload_file(
     bucket_name: str, 
     file_key: str,
-    file: object
+    file_path: str
     ):
     """Upload a file to an S3 bucket
 
@@ -48,16 +49,20 @@ def s3_put_object(
     # Upload the file
     s3_client = boto3.client("s3")
     try:
-        response = s3_client.put_object(
-            Bucket=bucket_name, 
-            Key=file_key,
-            Body=file,
-            ContentType="text/plain;charset=utf-8"
-            )
+        response = s3_client.upload_file(
+            Filename=file_path,
+            Bucket=bucket_name,
+            Key=file_key
+        )
     except ClientError as e:
         print(e)
         return False
     return True
+
+def gzip_file(input_file, output_file):
+    with open(input_file, 'rb') as f_in:
+        with gzip.open(output_file, 'wb') as f_out:
+            f_out.writelines(f_in)
 
 def lambda_handler(event, context):
     print("begin")
@@ -69,20 +74,31 @@ def lambda_handler(event, context):
 
         response = details_search(id=id)
         response_dict = json.loads(response.text)
-        response_encoded = json.dumps(
-            response_dict, 
-            ensure_ascii=False
-            ).encode('utf8')
         
         # Upload to S3
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
         bucket = "dcpgm-sor"
         prefix = "gmaps/details/"
-        file_name = f"{id}_{timestamp}.json"
-        key = f"{prefix}{file_name}"
+        file_name = f"{id}_{timestamp}"
+        key = f"{prefix}{file_name}.gz"
 
-        s3_put_object(
+        # Create a temporary file in the /tmp directory
+        tmp_file_path_json = f'/tmp/{file_name}.json'
+        tmp_file_path_gz = f'/tmp/{file_name}.gz'
+        with open(tmp_file_path_json, 'w') as f:
+            json.dump(
+                obj=response_dict,
+                fp=f,
+                ensure_ascii=False
+                )
+
+        gzip_file(
+            input_file=tmp_file_path_json,
+            output_file=tmp_file_path_gz
+            )
+
+        s3_upload_file(
             bucket_name=bucket,
             file_key=key,
-            file=response_encoded
+            file_path=tmp_file_path_gz
             )
